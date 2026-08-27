@@ -8,9 +8,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 
 export const Board = () => {
-  // 👇 Adicionado movesCount da store
   const { tiles, initGame, move, score, movesCount, gameOver } = useGameStore();
   const [showModal, setShowModal] = useState(false);
+  const [showControls, setShowControls] = useState(false); // 👈 Estado para alternar os botões na tela
   const isAnimatingRef = useRef(false);
 
   useEffect(() => {
@@ -44,25 +44,30 @@ export const Board = () => {
 
     setTimeout(() => {
       isAnimatingRef.current = false;
-    }, 180);
+    }, 400);
   };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      switch (e.key) {
-        case 'ArrowUp':
+      const key = e.key.toLowerCase();
+      switch (key) {
+        case 'arrowup':
+        case 'w':
           e.preventDefault();
           handleAttemptMove('UP');
           break;
-        case 'ArrowDown':
+        case 'arrowdown':
+        case 's':
           e.preventDefault();
           handleAttemptMove('DOWN');
           break;
-        case 'ArrowLeft':
+        case 'arrowleft':
+        case 'a':
           e.preventDefault();
           handleAttemptMove('LEFT');
           break;
-        case 'ArrowRight':
+        case 'arrowright':
+        case 'd':
           e.preventDefault();
           handleAttemptMove('RIGHT');
           break;
@@ -84,14 +89,14 @@ export const Board = () => {
 
   return (
     <div className="flex flex-col items-center gap-4">
-      {/* Cabeçalho de Placar com Pontos e Jogadas */}
+      {/* Placar Superior */}
       <div className="flex justify-between items-center w-full max-w-md px-2">
         <div className="flex items-center gap-4">
           <div className="flex flex-col">
             <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Pontos</span>
             <span className="text-2xl font-black text-amber-200 leading-none">{score}</span>
           </div>
-          
+
           <div className="w-[1px] h-8 bg-amber-700/50" />
 
           <div className="flex flex-col">
@@ -99,6 +104,19 @@ export const Board = () => {
             <span className="text-2xl font-black text-amber-200 leading-none">{movesCount}</span>
           </div>
         </div>
+
+        {/* Botão para Ativar/Desativar os Controles na Tela */}
+        <button
+          onClick={() => setShowControls((prev) => !prev)}
+          className={`px-3 py-2 rounded-xl font-bold text-xs transition border ${
+            showControls
+              ? 'bg-amber-500 text-amber-950 border-amber-300'
+              : 'bg-amber-950/60 text-amber-200 border-amber-700/60 hover:bg-amber-900/60'
+          }`}
+          title="Controles na tela"
+        >
+          🎮 {showControls ? 'Ocultar Setas' : 'Usar Mouse'}
+        </button>
 
         <button
           onClick={handleInitGame}
@@ -108,7 +126,46 @@ export const Board = () => {
         </button>
       </div>
 
-      {/* Tabuleiro */}
+      {/* Controles Virtuais D-Pad (Aparecem quando ativados) */}
+      <AnimatePresence>
+        {showControls && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="flex flex-col items-center gap-1.5 py-1"
+          >
+            <button
+              onClick={() => handleAttemptMove('UP')}
+              className="w-11 h-11 bg-amber-700/80 hover:bg-amber-600 active:scale-90 border border-amber-500/50 text-amber-100 rounded-xl font-black text-xl flex items-center justify-center shadow-md transition"
+            >
+              ▲
+            </button>
+            <div className="flex gap-4">
+              <button
+                onClick={() => handleAttemptMove('LEFT')}
+                className="w-11 h-11 bg-amber-700/80 hover:bg-amber-600 active:scale-90 border border-amber-500/50 text-amber-100 rounded-xl font-black text-xl flex items-center justify-center shadow-md transition"
+              >
+                ◀
+              </button>
+              <button
+                onClick={() => handleAttemptMove('DOWN')}
+                className="w-11 h-11 bg-amber-700/80 hover:bg-amber-600 active:scale-90 border border-amber-500/50 text-amber-100 rounded-xl font-black text-xl flex items-center justify-center shadow-md transition"
+              >
+                ▼
+              </button>
+              <button
+                onClick={() => handleAttemptMove('RIGHT')}
+                className="w-11 h-11 bg-amber-700/80 hover:bg-amber-600 active:scale-90 border border-amber-500/50 text-amber-100 rounded-xl font-black text-xl flex items-center justify-center shadow-md transition"
+              >
+                ▶
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Tabuleiro Principal */}
       <div
         {...bind()}
         className="relative w-[460px] h-[460px] sm:w-[560px] sm:h-[560px] touch-none select-none shadow-2xl rounded-2xl overflow-hidden"
@@ -138,7 +195,7 @@ export const Board = () => {
           </div>
         </div>
 
-        {/* Modal de Game Over com estatísticas atualizadas */}
+        {/* Modal de Game Over */}
         <AnimatePresence>
           {gameOver && showModal && (
             <motion.div
