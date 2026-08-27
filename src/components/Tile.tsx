@@ -1,45 +1,61 @@
 'use client';
 
-import { Tile as TileType } from '@/types/game';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
+import { Tile as TileType } from '@/types/game';
 
 interface TileProps {
   tile: TileType;
 }
 
 export const Tile = ({ tile }: TileProps) => {
-  const imageNumber = String(tile.value).padStart(2, '0');
-  const imagePath = `/assets/bottles/bottle_${imageNumber}.png`;
+  // Posição percentual baseada no grid 4x4 (25% por célula)
+  const top = `${tile.row * 25}%`;
+  const left = `${tile.col * 25}%`;
 
   return (
     <motion.div
-      layoutId={tile.id}
-      initial={{ scale: 0, opacity: 0 }}
+      layout
+      initial={tile.isNew ? { scale: 0, opacity: 0 } : false}
       animate={{
-        scale: 1,
+        scale: tile.isNew ? [0, 1.15, 1] : 1,
         opacity: 1,
-        top: `${tile.row * 25}%`,
-        left: `${tile.col * 25}%`,
       }}
       transition={{
-        type: 'spring',
-        stiffness: 320,
-        damping: 26,
+        duration: 0.25,
+        ease: 'easeOut',
       }}
-      className="absolute w-1/4 h-1/4 p-1.5 z-10 select-none pointer-events-none"
+      className="absolute w-[25%] h-[25%] p-1.5 flex items-center justify-center pointer-events-none"
+      style={{ top, left }}
     >
       <div className="relative w-full h-full flex items-center justify-center">
-        <Image
-          src={imagePath}
-          alt={`Garrafa Nível ${tile.value}`}
-          fill
-          unoptimized
-          sizes="160px"
-          className="w-[90%] h-[90%] object-contain drop-shadow-md"
-          priority
-        />
-        <span className="absolute bottom-1 right-1 bg-black/80 text-white text-[11px] font-black px-1.5 py-0.5 rounded-full border border-white/30 shadow">
+        {/* Efeito Glow / Brilho Dourado para Peças Novas */}
+        {tile.isNew && (
+          <motion.div
+            initial={{ opacity: 0.8, scale: 0.8 }}
+            animate={{ opacity: [0.8, 0.3, 0], scale: [0.8, 1.3, 1.4] }}
+            transition={{ duration: 0.6, ease: 'easeOut' }}
+            className="absolute inset-0 rounded-full bg-amber-400 blur-md pointer-events-none z-0"
+          />
+        )}
+
+        {/* Garrafa com filtro de brilho se for nova */}
+        <div
+          className={`relative w-full h-full transition-all duration-300 ${
+            tile.isNew ? 'drop-shadow-[0_0_12px_rgba(251,191,36,0.9)]' : ''
+          }`}
+        >
+          <Image
+            src={`/assets/bottles/bottle_${String(tile.value).padStart(2, '0')}.png`} // Transforma 1 em 'bottle_01.png'
+            alt={`Garrafa ${tile.value}`}
+            fill
+            unoptimized
+            className="object-contain z-10"
+            />
+        </div>
+
+        {/* Badge com o nível da garrafa */}
+        <span className="absolute bottom-0 right-0 bg-black/70 text-amber-200 border border-amber-500/50 text-[10px] sm:text-xs font-black px-1.5 py-0.5 rounded-full z-20 shadow-md">
           {tile.value}
         </span>
       </div>

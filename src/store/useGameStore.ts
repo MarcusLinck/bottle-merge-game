@@ -12,12 +12,7 @@ interface GameState {
 
 const GRID_SIZE = 4;
 
-const createTile = (row: number, col: number, value = 1): Tile => ({
-  id: `tile-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-  value,
-  row,
-  col,
-});
+const generateId = () => `tile-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
 const getEmptyPositions = (tiles: Tile[]) => {
   const empty: { row: number; col: number }[] = [];
@@ -41,9 +36,7 @@ const checkGameOver = (tiles: Tile[]): boolean => {
     for (let c = 0; c < GRID_SIZE; c++) {
       const current = grid[r][c];
       if (current === null) return false;
-      // Checa vizinho à direita
       if (c < GRID_SIZE - 1 && current === grid[r][c + 1]) return false;
-      // Checa vizinho abaixo
       if (r < GRID_SIZE - 1 && current === grid[r + 1][c]) return false;
     }
   }
@@ -51,12 +44,30 @@ const checkGameOver = (tiles: Tile[]): boolean => {
   return true;
 };
 
+// Adiciona a nova garrafa marcando isNew = true
 const spawnRandomTile = (currentTiles: Tile[]): Tile[] => {
   const emptyPositions = getEmptyPositions(currentTiles);
   if (emptyPositions.length === 0) return currentTiles;
 
   const randomPos = emptyPositions[Math.floor(Math.random() * emptyPositions.length)];
-  return [...currentTiles, createTile(randomPos.row, randomPos.col, 1)];
+  const newValue = Math.random() < 0.9 ? 1 : 2;
+
+  // Remove a flag isNew das garrafas anteriores
+  const cleanedTiles = currentTiles.map((tile) => ({
+    ...tile,
+    isNew: false,
+  }));
+
+  return [
+    ...cleanedTiles,
+    {
+      id: generateId(),
+      row: randomPos.row,
+      col: randomPos.col,
+      value: newValue,
+      isNew: true,
+    },
+  ];
 };
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -95,11 +106,20 @@ export const useGameStore = create<GameState>((set, get) => ({
         if (next && current.value === next.value) {
           const mergedValue = current.value + 1;
           newScore += mergedValue * 10;
-          result.push({ ...current, value: mergedValue });
-          i++;
+
+          // Gera um NOVO ID na fusão para evitar colisão de React Keys
+          result.push({
+            id: generateId(),
+            value: mergedValue,
+            row: current.row,
+            col: current.col,
+            isNew: false,
+          });
+
+          i++; // Pula a próxima garrafa combinada
           moved = true;
         } else {
-          result.push(current);
+          result.push({ ...current });
         }
       }
       return result;
