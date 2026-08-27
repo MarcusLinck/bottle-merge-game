@@ -31,7 +31,7 @@ export const Board = () => {
     initGame();
   };
 
-  const handleAttemptMove = (direction: 'UP' | 'DOWN' | 'LEFT' | 'RIGHT') => {
+const handleAttemptMove = (direction: 'UP' | 'DOWN' | 'LEFT' | 'RIGHT') => {
     if (gameOver) {
       setShowModal(true);
       return;
@@ -42,9 +42,10 @@ export const Board = () => {
     isAnimatingRef.current = true;
     move(direction);
 
+    // Ajustado para 300ms para casar perfeitamente com a animação de fusão
     setTimeout(() => {
       isAnimatingRef.current = false;
-    }, 400);
+    }, 300);
   };
 
   useEffect(() => {
@@ -189,9 +190,11 @@ export const Board = () => {
           }}
         >
           <div className="relative w-full h-full">
+            <AnimatePresence>
             {tiles.map((tile) => (
               <Tile key={tile.id} tile={tile} />
             ))}
+            </AnimatePresence>
           </div>
         </div>
 

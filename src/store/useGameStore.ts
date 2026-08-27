@@ -52,10 +52,11 @@ const spawnRandomTile = (currentTiles: Tile[]): Tile[] => {
   const randomPos = emptyPositions[Math.floor(Math.random() * emptyPositions.length)];
   const newValue = Math.random() < 0.9 ? 1 : 2;
 
-  // Remove a flag isNew das garrafas anteriores
+  // Remove a flag isNew e isMerged das garrafas anteriores
   const cleanedTiles = currentTiles.map((tile) => ({
     ...tile,
     isNew: false,
+    isMerged: false, // 👈 Reseta a animação de fusão no próximo turno
   }));
 
   return [
@@ -66,6 +67,7 @@ const spawnRandomTile = (currentTiles: Tile[]): Tile[] => {
       col: randomPos.col,
       value: newValue,
       isNew: true,
+      isMerged: false,
     },
   ];
 };
@@ -95,7 +97,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     const newTiles: Tile[] = [];
 
-    const processVector = (line: (Tile | null)[]) => {
+const processVector = (line: (Tile | null)[]) => {
       const filtered = line.filter((t): t is Tile => t !== null);
       const result: Tile[] = [];
 
@@ -107,19 +109,21 @@ export const useGameStore = create<GameState>((set, get) => ({
           const mergedValue = current.value + 1;
           newScore += mergedValue * 10;
 
-          // Gera um NOVO ID na fusão para evitar colisão de React Keys
+          // 🔥 MANTÉM o id da peça original (current.id) em vez de gerar um novo!
+          // Isso faz a garrafa deslizar até a posição final antes do impacto.
           result.push({
-            id: generateId(),
+            id: current.id, 
             value: mergedValue,
             row: current.row,
             col: current.col,
             isNew: false,
+            isMerged: true,
           });
 
-          i++; // Pula a próxima garrafa combinada
+          i++; // Pula a garrafa consumida
           moved = true;
         } else {
-          result.push({ ...current });
+          result.push({ ...current, isMerged: false });
         }
       }
       return result;
