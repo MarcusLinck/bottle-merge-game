@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useGameStore } from '@/store/useGameStore';
 import { Tile } from './Tile';
 import { useGesture } from '@use-gesture/react';
@@ -8,10 +8,17 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 
 export const Board = () => {
-  const { tiles, initGame, move, score, gameOver } = useGameStore();
+  // 👇 Adicionado movesCount da store
+  const { tiles, initGame, move, score, movesCount, gameOver } = useGameStore();
   const [showModal, setShowModal] = useState(false);
+  const isAnimatingRef = useRef(false);
 
-  // Sincroniza o modal local sempre que o estado de gameOver mudar
+  useEffect(() => {
+    if (tiles.length === 0) {
+      initGame();
+    }
+  }, [initGame, tiles.length]);
+
   useEffect(() => {
     if (gameOver) {
       setShowModal(true);
@@ -20,16 +27,24 @@ export const Board = () => {
 
   const handleInitGame = () => {
     setShowModal(false);
+    isAnimatingRef.current = false;
     initGame();
   };
 
   const handleAttemptMove = (direction: 'UP' | 'DOWN' | 'LEFT' | 'RIGHT') => {
     if (gameOver) {
-      // Se o jogo acabou e o modal estava fechado, reabre o modal ao tentar mover
       setShowModal(true);
       return;
     }
+
+    if (isAnimatingRef.current) return;
+
+    isAnimatingRef.current = true;
     move(direction);
+
+    setTimeout(() => {
+      isAnimatingRef.current = false;
+    }, 180);
   };
 
   useEffect(() => {
@@ -69,8 +84,22 @@ export const Board = () => {
 
   return (
     <div className="flex flex-col items-center gap-4">
+      {/* Cabeçalho de Placar com Pontos e Jogadas */}
       <div className="flex justify-between items-center w-full max-w-md px-2">
-        <span className="text-2xl font-black text-amber-200">Pontos: {score}</span>
+        <div className="flex items-center gap-4">
+          <div className="flex flex-col">
+            <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Pontos</span>
+            <span className="text-2xl font-black text-amber-200 leading-none">{score}</span>
+          </div>
+          
+          <div className="w-[1px] h-8 bg-amber-700/50" />
+
+          <div className="flex flex-col">
+            <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Jogadas</span>
+            <span className="text-2xl font-black text-amber-200 leading-none">{movesCount}</span>
+          </div>
+        </div>
+
         <button
           onClick={handleInitGame}
           className="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md transition transform active:scale-95"
@@ -79,11 +108,11 @@ export const Board = () => {
         </button>
       </div>
 
+      {/* Tabuleiro */}
       <div
         {...bind()}
         className="relative w-[460px] h-[460px] sm:w-[560px] sm:h-[560px] touch-none select-none shadow-2xl rounded-2xl overflow-hidden"
       >
-        {/* Imagem de Fundo do Grid */}
         <Image
           src="/assets/board_bg.png"
           alt="Tabuleiro"
@@ -93,7 +122,6 @@ export const Board = () => {
           className="object-contain pointer-events-none"
         />
 
-        {/* Área Jogável Interna */}
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
@@ -110,7 +138,7 @@ export const Board = () => {
           </div>
         </div>
 
-        {/* Modal de Game Over */}
+        {/* Modal de Game Over com estatísticas atualizadas */}
         <AnimatePresence>
           {gameOver && showModal && (
             <motion.div
@@ -122,11 +150,20 @@ export const Board = () => {
               <h2 className="text-3xl font-black text-amber-400 mb-2">Fim de Jogo!</h2>
               <p className="text-gray-300 mb-4 font-semibold">Sem movimentos disponíveis.</p>
 
-              <div className="bg-amber-900/50 border border-amber-600/40 rounded-xl px-6 py-3 mb-6">
-                <span className="text-xs uppercase tracking-wider text-amber-300 font-bold block">
-                  Pontuação Final
-                </span>
-                <span className="text-4xl font-extrabold text-white">{score}</span>
+              <div className="flex gap-3 mb-6">
+                <div className="bg-amber-900/50 border border-amber-600/40 rounded-xl px-5 py-3">
+                  <span className="text-xs uppercase tracking-wider text-amber-300 font-bold block">
+                    Pontuação
+                  </span>
+                  <span className="text-3xl font-extrabold text-white">{score}</span>
+                </div>
+
+                <div className="bg-amber-900/50 border border-amber-600/40 rounded-xl px-5 py-3">
+                  <span className="text-xs uppercase tracking-wider text-amber-300 font-bold block">
+                    Jogadas
+                  </span>
+                  <span className="text-3xl font-extrabold text-white">{movesCount}</span>
+                </div>
               </div>
 
               <div className="flex flex-col gap-3 w-full max-w-xs">

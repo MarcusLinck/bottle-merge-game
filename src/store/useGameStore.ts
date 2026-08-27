@@ -4,6 +4,7 @@ import { Tile, Direction } from '@/types/game';
 interface GameState {
   tiles: Tile[];
   score: number;
+  movesCount: number;
   gameOver: boolean;
   initGame: () => void;
   move: (direction: Direction) => void;
@@ -62,16 +63,17 @@ export const useGameStore = create<GameState>((set, get) => ({
   tiles: [],
   score: 0,
   gameOver: false,
+  movesCount: 0,
 
   initGame: () => {
     let initialTiles: Tile[] = [];
     initialTiles = spawnRandomTile(initialTiles);
     initialTiles = spawnRandomTile(initialTiles);
-    set({ tiles: initialTiles, score: 0, gameOver: false });
+    set({ tiles: initialTiles, score: 0, movesCount: 0, gameOver: false });
   },
 
   move: (direction: Direction) => {
-    const { tiles, score, gameOver } = get();
+    const { tiles, score, movesCount, gameOver } = get();
     if (gameOver) return;
 
     let moved = false;
@@ -138,7 +140,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (moved) {
       const tilesWithNewOne = spawnRandomTile(newTiles);
       const isOver = checkGameOver(tilesWithNewOne);
-      set({ tiles: tilesWithNewOne, score: newScore, gameOver: isOver });
+      set({ tiles: tilesWithNewOne, score: newScore, movesCount: movesCount + 1, gameOver: isOver });
     }
   },
 }));
