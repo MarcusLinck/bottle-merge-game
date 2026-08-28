@@ -6,6 +6,7 @@ interface GameState {
   score: number;
   movesCount: number;
   gameOver: boolean;
+  isMoving: boolean;
   initGame: () => void;
   move: (direction: Direction) => void;
 }
@@ -18,7 +19,7 @@ const getEmptyPositions = (tiles: Tile[]) => {
   const empty: { row: number; col: number }[] = [];
   for (let r = 0; r < GRID_SIZE; r++) {
     for (let c = 0; c < GRID_SIZE; c++) {
-      if (!tiles.some((t) => t.row === r && t.col === c)) {
+      if (!tiles.some((t) => t.row === r && t.col === c && !t.mergedIntoId)) {
         empty.push({ row: r, col: c });
       }
     }
@@ -27,10 +28,11 @@ const getEmptyPositions = (tiles: Tile[]) => {
 };
 
 const checkGameOver = (tiles: Tile[]): boolean => {
-  if (tiles.length < GRID_SIZE * GRID_SIZE) return false;
+  const activeTiles = tiles.filter((t) => !t.mergedIntoId);
+  if (activeTiles.length < GRID_SIZE * GRID_SIZE) return false;
 
   const grid: (number | null)[][] = Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(null));
-  tiles.forEach((t) => (grid[t.row][t.col] = t.value));
+  activeTiles.forEach((t) => (grid[t.row][t.col] = t.value));
 
   for (let r = 0; r < GRID_SIZE; r++) {
     for (let c = 0; c < GRID_SIZE; c++) {
@@ -44,7 +46,6 @@ const checkGameOver = (tiles: Tile[]): boolean => {
   return true;
 };
 
-// Adiciona a nova garrafa marcando isNew = true
 const spawnRandomTile = (currentTiles: Tile[]): Tile[] => {
   const emptyPositions = getEmptyPositions(currentTiles);
   if (emptyPositions.length === 0) return currentTiles;
@@ -52,15 +53,13 @@ const spawnRandomTile = (currentTiles: Tile[]): Tile[] => {
   const randomPos = emptyPositions[Math.floor(Math.random() * emptyPositions.length)];
   const newValue = Math.random() < 0.9 ? 1 : 2;
 
-  // Remove a flag isNew e isMerged das garrafas anteriores
-  const cleanedTiles = currentTiles.map((tile) => ({
+  const updatedTiles = currentTiles.map((tile) => ({
     ...tile,
     isNew: false,
-    isMerged: false, // 👈 Reseta a animação de fusão no próximo turno
   }));
 
   return [
-    ...cleanedTiles,
+    ...updatedTiles,
     {
       id: generateId(),
       row: randomPos.row,
@@ -77,60 +76,41 @@ export const useGameStore = create<GameState>((set, get) => ({
   score: 0,
   gameOver: false,
   movesCount: 0,
+  isMoving: false,
 
   initGame: () => {
     let initialTiles: Tile[] = [];
     initialTiles = spawnRandomTile(initialTiles);
     initialTiles = spawnRandomTile(initialTiles);
-    set({ tiles: initialTiles, score: 0, movesCount: 0, gameOver: false });
+    set({ tiles: initialTiles, score: 0, movesCount: 0, gameOver: false, isMoving: false });
   },
 
   move: (direction: Direction) => {
-    const { tiles, score, movesCount, gameOver } = get();
-    if (gameOver) return;
+    const { score, movesCount, gameOver, isMoving } = get();
+    if (gameOver || isMoving) return;
+
+    // Limpa estado anterior (filtra tiles deletados no merge anterior)
+    const cleanedTiles = get().tiles
+      .filter((t) => !t.mergedIntoId)
+      .map((tile) => ({
+        ...tile,
+        isMerged: false,
+        isNew: false,
+      }));
 
     let moved = false;
-    let newScore = score;
+    let addedScore = 0;
 
-    const grid: (Tile | null)[][] = Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(null));
-    tiles.forEach((t) => (grid[t.row][t.col] = { ...t }));
+    const grid: (Tile | null)[][] = Array.from({ length: GRID_SIZE }, () =>
+      Array(GRID_SIZE).fill(null)
+    );
+    cleanedTiles.forEach((t) => (grid[t.row][t.col] = { ...t }));
 
-    const newTiles: Tile[] = [];
-
-const processVector = (line: (Tile | null)[]) => {
-      const filtered = line.filter((t): t is Tile => t !== null);
-      const result: Tile[] = [];
-
-      for (let i = 0; i < filtered.length; i++) {
-        const current = filtered[i];
-        const next = filtered[i + 1];
-
-        if (next && current.value === next.value) {
-          const mergedValue = current.value + 1;
-          newScore += mergedValue * 10;
-
-          // 🔥 MANTÉM o id da peça original (current.id) em vez de gerar um novo!
-          // Isso faz a garrafa deslizar até a posição final antes do impacto.
-          result.push({
-            id: current.id, 
-            value: mergedValue,
-            row: current.row,
-            col: current.col,
-            isNew: false,
-            isMerged: true,
-          });
-
-          i++; // Pula a garrafa consumida
-          moved = true;
-        } else {
-          result.push({ ...current, isMerged: false });
-        }
-      }
-      return result;
-    };
+    const intermediateTiles: Tile[] = [];
+    const finalTiles: Tile[] = [];
 
     for (let i = 0; i < GRID_SIZE; i++) {
-      let line: (Tile | null)[] = [];
+      const line: (Tile | null)[] = [];
 
       for (let j = 0; j < GRID_SIZE; j++) {
         if (direction === 'LEFT') line.push(grid[i][j]);
@@ -139,32 +119,99 @@ const processVector = (line: (Tile | null)[]) => {
         if (direction === 'DOWN') line.push(grid[GRID_SIZE - 1 - j][i]);
       }
 
-      const processed = processVector(line);
+      const nonNull = line
+        .map((tile, idx) => ({ tile, originalIndex: idx }))
+        .filter((item): item is { tile: Tile; originalIndex: number } => item.tile !== null);
 
-      for (let j = 0; j < GRID_SIZE; j++) {
-        const targetTile = processed[j];
-        if (targetTile) {
-          let newRow = i;
-          let newCol = j;
+      let targetIdx = 0;
 
-          if (direction === 'LEFT') { newRow = i; newCol = j; }
-          if (direction === 'RIGHT') { newRow = i; newCol = GRID_SIZE - 1 - j; }
-          if (direction === 'UP') { newRow = j; newCol = i; }
-          if (direction === 'DOWN') { newRow = GRID_SIZE - 1 - j; newCol = i; }
+      for (let k = 0; k < nonNull.length; k++) {
+        const current = nonNull[k];
+        const next = nonNull[k + 1];
 
-          if (targetTile.row !== newRow || targetTile.col !== newCol) {
+        const getTargetPos = (index: number) => {
+          let r = i, c = index;
+          if (direction === 'LEFT') { r = i; c = index; }
+          if (direction === 'RIGHT') { r = i; c = GRID_SIZE - 1 - index; }
+          if (direction === 'UP') { r = index; c = i; }
+          if (direction === 'DOWN') { r = GRID_SIZE - 1 - index; c = i; }
+          return { row: r, col: c };
+        };
+
+        const targetPos = getTargetPos(targetIdx);
+
+        if (next && current.tile.value === next.tile.value) {
+          const mergedValue = current.tile.value + 1;
+          addedScore += mergedValue * 10;
+          moved = true;
+
+          const mergedId = generateId();
+
+          // Ambas as peças deslizam até a célula de fusão
+          intermediateTiles.push({
+            ...current.tile,
+            row: targetPos.row,
+            col: targetPos.col,
+            mergedIntoId: mergedId,
+          });
+
+          intermediateTiles.push({
+            ...next.tile,
+            row: targetPos.row,
+            col: targetPos.col,
+            mergedIntoId: mergedId,
+          });
+
+          // Peça final que assume a vaga no término do deslizamento
+          finalTiles.push({
+            id: mergedId,
+            value: mergedValue,
+            row: targetPos.row,
+            col: targetPos.col,
+            isNew: false,
+            isMerged: true,
+          });
+
+          k++;
+          targetIdx++;
+        } else {
+          if (current.tile.row !== targetPos.row || current.tile.col !== targetPos.col) {
             moved = true;
           }
 
-          newTiles.push({ ...targetTile, row: newRow, col: newCol });
+          const updatedTile = {
+            ...current.tile,
+            row: targetPos.row,
+            col: targetPos.col,
+            isMerged: false,
+          };
+
+          intermediateTiles.push(updatedTile);
+          finalTiles.push(updatedTile);
+
+          targetIdx++;
         }
       }
     }
 
     if (moved) {
-      const tilesWithNewOne = spawnRandomTile(newTiles);
-      const isOver = checkGameOver(tilesWithNewOne);
-      set({ tiles: tilesWithNewOne, score: newScore, movesCount: movesCount + 1, gameOver: isOver });
+      // ETAPA 1: Renderiza o deslizamento das garrafas até o destino
+      set({ tiles: intermediateTiles, isMoving: true });
+
+      // ETAPA 2: Após o término do deslizamento (150ms), completa a fusão
+      setTimeout(() => {
+        const currentScore = get().score + addedScore;
+        const tilesWithNew = spawnRandomTile(finalTiles);
+        const isOver = checkGameOver(tilesWithNew);
+
+        set({
+          tiles: tilesWithNew,
+          score: currentScore,
+          movesCount: movesCount + 1,
+          gameOver: isOver,
+          isMoving: false,
+        });
+      }, 150);
     }
   },
 }));
